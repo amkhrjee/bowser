@@ -69,12 +69,12 @@ class URL:
                 assert "content-encoding" not in response_headers
 
             while int(self.status) in range(300, 400):
-                print("I'm here")
+                print("Current number of redirects:", self.redirects_count)
                 # handle redirects
                 if self.redirects_count < 50:
                     url = response_headers["location"]
                     if not url.startswith("http"):
-                        url = self.scheme + self.host + url
+                        url = self.scheme + "://" + self.host + url
                     print("Redirect Request:", url)
                     response, response_headers = self.send_redirect_request(
                         url, self.host, self.port
