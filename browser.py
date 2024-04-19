@@ -4,28 +4,30 @@ import ssl
 
 class URL:
     def __init__(self, url):
+        self.is_view_source = False
         if url.startswith("data:text/html"):
             self.scheme, self.content = url.split(",", 1)
         elif url.startswith("view-source:"):
-            self.scheme = "view-source"
-        else:
-            self.scheme, url = url.split("://", 1)
-            assert self.scheme in ["https", "http", "file"]
+            self.is_view_source = True
+            _, url = url.split(":", 1)
 
-            if "/" not in url:
-                url = url + "/"
-            self.host, url = url.split("/", 1)
+        self.scheme, url = url.split("://", 1)
+        assert self.scheme in ["https", "http", "file"]
 
-            if ":" in self.host:
-                self.host, port = self.host.split(":", 1)
-                self.port = int(port)
+        if "/" not in url:
+            url = url + "/"
+        self.host, url = url.split("/", 1)
 
-            self.path = "/" + url
+        if ":" in self.host:
+            self.host, port = self.host.split(":", 1)
+            self.port = int(port)
 
-            if self.scheme == "https":
-                self.port = 443
-            elif self.scheme == "http":
-                self.port = 80
+        self.path = "/" + url
+
+        if self.scheme == "https":
+            self.port = 443
+        elif self.scheme == "http":
+            self.port = 80
 
     def request(self):
         if self.scheme in ["https", "http"]:
@@ -37,7 +39,7 @@ class URL:
                 s = ctx.wrap_socket(s, server_hostname=self.host)
 
             s.connect((self.host, self.port))
-            request = f"GET {self.path} HTTP/1.0\r\n"
+            request = f"GET {self.path} HTTP/1.1\r\n"
             request += f"Host: {self.host}\r\n"
             request += "Connection: close\r\n"
             request += "\r\n"
@@ -58,6 +60,8 @@ class URL:
                 assert "content-encoding" not in response_headers
             content = response.read()
             s.close()
+            if self.is_view_source:
+                content = "1729" + content
         elif self.scheme == "file":
             with open(self.path) as f:
                 content = f.read()
@@ -67,20 +71,23 @@ class URL:
 
 
 def show(body):
-    in_tag = False
-    characters = []
-    for c in body:
-        if c == "<":
-            in_tag = True
-        elif c == ">":
-            in_tag = False
-        elif not in_tag:
-            characters.append(c)
-    body = "".join(characters)
-    body = body.replace("&lt;", "<")
-    body = body.replace("&gt;", ">")
-    body += "\n"
-    print(body)
+    if body.startswith("1729"):
+        print(body[4:])
+    else:
+        in_tag = False
+        characters = []
+        for c in body:
+            if c == "<":
+                in_tag = True
+            elif c == ">":
+                in_tag = False
+            elif not in_tag:
+                characters.append(c)
+        body = "".join(characters)
+        body = body.replace("&lt;", "<")
+        body = body.replace("&gt;", ">")
+        body += "\n"
+        print(body)
 
 
 def load(url):
