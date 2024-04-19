@@ -68,14 +68,19 @@ class URL:
 
 def show(body):
     in_tag = False
+    characters = []
     for c in body:
         if c == "<":
             in_tag = True
         elif c == ">":
             in_tag = False
         elif not in_tag:
-            print(c, end="")
-    print("\n")
+            characters.append(c)
+    body = "".join(characters)
+    body = body.replace("&lt;", "<")
+    body = body.replace("&gt;", ">")
+    body += "\n"
+    print(body)
 
 
 def load(url):
