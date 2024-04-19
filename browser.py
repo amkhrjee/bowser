@@ -4,7 +4,12 @@ import ssl
 
 class URL:
     def __init__(self, url):
+        self.redirects_count = 0
         self.is_view_source = False
+        self.too_many_redirects = False
+        self.parse_url(url)
+
+    def parse_url(self, url):
         if url.startswith("data:text/html"):
             self.scheme, self.content = url.split(",", 1)
         elif url.startswith("view-source:"):
@@ -42,13 +47,17 @@ class URL:
             request = f"GET {self.path} HTTP/1.1\r\n"
             request += f"Host: {self.host}\r\n"
             request += "Connection: close\r\n"
+            # TODO: make this keep-alive
+            # request += "Connection: keep-alive\r\n"
+            # connection is keep-alive by default
             request += "\r\n"
             s.send(request.encode("utf8"))
 
             # Receiving response
             response = s.makefile("r", encoding="utf8", newline="\r\n")
             statuslne = response.readline()
-            version, status, explanation = statuslne.split(" ", 2)
+            version, self.status, explanation = statuslne.split(" ", 2)
+
             response_headers = {}
             while True:
                 line = response.readline()
@@ -58,7 +67,25 @@ class URL:
                 response_headers[header.casefold()] = value.strip()
                 assert "transfer-encoding" not in response_headers
                 assert "content-encoding" not in response_headers
-            content = response.read()
+
+            while int(self.status) in range(300, 400):
+                print("I'm here")
+                # handle redirects
+                if self.redirects_count < 50:
+                    url = response_headers["location"]
+                    if not url.startswith("http"):
+                        url = self.scheme + self.host + url
+                    print("Redirect Request:", url)
+                    response, response_headers = self.send_redirect_request(
+                        url, self.host, self.port
+                    )
+                else:
+                    self.too_many_redirects = True
+
+            if self.too_many_redirects:
+                content = "Too many redirects!"
+            else:
+                content = response.read(int(response_headers.get("content-length")))
             s.close()
             if self.is_view_source:
                 content = "1729" + content
@@ -68,6 +95,51 @@ class URL:
         elif self.scheme == "data:text/html":
             content = self.content.strip()
         return content
+
+    def send_redirect_request(self, url, old_host, old_port):
+        self.redirects_count += 1
+        self.parse_url(url)
+        if self.scheme in ["https", "http"]:
+            skt = socket.socket(
+                family=socket.AF_INET, type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP
+            )
+            if self.scheme == "https":
+                ctx = ssl.create_default_context()
+                skt = ctx.wrap_socket(skt, server_hostname=self.host)
+            # make annother request:
+            # if self.host != old_host or self.port != old_port:
+            skt.connect((self.host, self.port))
+            request = f"GET {self.path} HTTP/1.1\r\n"
+            request += f"Host: {self.host}\r\n"
+            request += "Connection: close\r\n"
+            request += "\r\n"
+            skt.send(request.encode("utf8"))
+            # receive the response
+            response = skt.makefile("r", encoding="utf8", newline="\r\n")
+            statusline = response.readline()
+            version, self.status, explanation = statusline.split(" ", 2)
+            print("In redirect:", self.status)
+            skt.close()
+
+            response_headers = {}
+            while True:
+                line = response.readline()
+                if line == "\r\n":
+                    break
+                header, value = line.split(":", 1)
+                response_headers[header.casefold()] = value.strip()
+                assert "transfer-encoding" not in response_headers
+                assert "content-encoding" not in response_headers
+            return response, response_headers
+
+        elif self.scheme == "file":
+            with open(self.path) as f:
+                content = f.read()
+            return content
+
+        elif self.scheme == "data:text/html":
+            content = self.content.strip()
+            return content
 
 
 def show(body):
