@@ -4,23 +4,28 @@ import ssl
 
 class URL:
     def __init__(self, url):
-        self.scheme, url = url.split("://", 1)
-        assert self.scheme in ["https", "http", "file"]
+        if url.startswith("data:text/html"):
+            self.scheme, self.content = url.split(",", 1)
+        elif url.startswith("view-source:"):
+            self.scheme = "view-source"
+        else:
+            self.scheme, url = url.split("://", 1)
+            assert self.scheme in ["https", "http", "file"]
 
-        if "/" not in url:
-            url = url + "/"
-        self.host, url = url.split("/", 1)
+            if "/" not in url:
+                url = url + "/"
+            self.host, url = url.split("/", 1)
 
-        if ":" in self.host:
-            self.host, port = self.host.split(":", 1)
-            self.port = int(port)
+            if ":" in self.host:
+                self.host, port = self.host.split(":", 1)
+                self.port = int(port)
 
-        self.path = "/" + url
+            self.path = "/" + url
 
-        if self.scheme == "https":
-            self.port = 443
-        elif self.scheme == "http":
-            self.port = 80
+            if self.scheme == "https":
+                self.port = 443
+            elif self.scheme == "http":
+                self.port = 80
 
     def request(self):
         if self.scheme in ["https", "http"]:
@@ -56,6 +61,8 @@ class URL:
         elif self.scheme == "file":
             with open(self.path) as f:
                 content = f.read()
+        elif self.scheme == "data:text/html":
+            content = self.content.strip()
         return content
 
 
@@ -68,6 +75,7 @@ def show(body):
             in_tag = False
         elif not in_tag:
             print(c, end="")
+    print("\n")
 
 
 def load(url):
