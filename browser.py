@@ -216,6 +216,7 @@ class Browser:
         self.canvas.pack()
         self.scroll = 0
         self.window.bind("<Down>", self.scrolldown)
+        self.window.bind("<Up>", self.scrollup)
 
     def draw(self):
         self.canvas.delete("all")
@@ -228,11 +229,18 @@ class Browser:
 
     def load(self, url):
         self.display_list = layout(lex(url.request()))
+        self.y_max = max([y[1] for y in self.display_list])
         self.draw()
 
     def scrolldown(self, e):
-        self.scroll += SCROLL_STEP
-        self.draw()
+        if self.scroll < self.y_max - HEIGHT:
+            self.scroll += SCROLL_STEP
+            self.draw()
+
+    def scrollup(self, e):
+        if self.scroll > 0:
+            self.scroll -= SCROLL_STEP
+            self.draw()
 
 
 if __name__ == "__main__":
