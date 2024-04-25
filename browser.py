@@ -2,6 +2,7 @@ import platform
 import socket
 import ssl
 import tkinter
+from tkinter import ttk
 
 # Global config
 WIDTH = 800
@@ -215,16 +216,31 @@ class Browser:
         self.window = tkinter.Tk()
         self.window.title("Bowser v0.0.1")
         self.canvas = tkinter.Canvas(self.window, width=WIDTH, height=HEIGHT)
-        self.canvas.pack(fill="both", expand=1)
+        # scrollbar support
+        self.scrollbar = ttk.Scrollbar(
+            self.window, orient="vertical", command=self.canvas.yview
+        )
+        self.scrollbar.place(relx=1, rely=0, relheight=1, anchor="ne")
+        self.canvas.configure(scrollregion=(0, 0, WIDTH, HEIGHT))
+        self.canvas.config(yscrollcommand=self.scrollbar.set)
+        # self.scrollbar.pack()
+        # scroll support
         self.scroll = 0
         self.window.bind("<Down>", self.scrolldown)
         self.window.bind("<Up>", self.scrollup)
-        # Works for Windows + Mac
-        self.window.bind("<MouseWheel>", self.mouse_scroll)
-        # Works for Linux
+        # for Windows + Mac
+        self.window.bind(
+            "<MouseWheel>",
+            lambda e: self.canvas.yview_scroll(
+                int(e.delta / (60 if os_name == "Darwin" else -60)), "units"
+            ),
+        )
+        # for Linux
         self.window.bind("<Button-4>", self.scrollup)
         self.window.bind("<Button-5>", self.scrolldown)
+        # resizing window
         self.window.bind("<Configure>", self.configure)
+        self.canvas.pack(fill="both", expand=True)
 
     def draw(self):
         self.canvas.delete("all")
@@ -239,6 +255,7 @@ class Browser:
         self.text = lex(url.request())
         self.display_list = layout(self.text, WIDTH)
         self.y_max = max([y[1] for y in self.display_list])
+
         self.draw()
 
     def scrolldown(self, e):
@@ -251,19 +268,8 @@ class Browser:
             self.scroll -= SCROLL_STEP
             self.draw()
 
-    def mouse_scroll(self, e):
-        if e.delta > 0:
-            if os_name == "Windows":
-                self.scrollup(e)
-            elif os_name == "Darwin":
-                self.scrolldown(e)
-        elif e.delta < 0:
-            if os_name == "Windows":
-                self.scrolldown()
-            elif os_name == "Darwin":
-                self.scrollup()
-
     def configure(self, e):
+        self.canvas.configure(scrollregion=(0, 0, e.width, self.y_max))
         self.display_list = layout(self.text, e.width)
         self.y_max = max([y[1] for y in self.display_list])
         self.draw()
